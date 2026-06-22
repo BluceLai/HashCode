@@ -1,0 +1,25 @@
+# Build outputs
+bin/
+obj/
+build_verify/
+
+# Visual Studio / local user state
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Local .NET first-run cache used by this workspace
+.dotnet_home/
+
+# Runtime settings saved by the app
+appsettings.json
+
+# Generated presentation workspaces and QA renders
+outputs/
+manuals/qa/
+
+# OS noise
+Thumbs.db
+Desktop.ini
