@@ -24,7 +24,7 @@ public sealed class MainForm : Form
     private readonly TextBox _targetDirectoryInput = new();
     private readonly TextBox _targetFileNameInput = new();
     private readonly CheckBox _allowDifferentNamesInput = new();
-    private readonly CheckedListBox _ignoredEntriesInput = new();
+    private readonly ListBox _preloadedEntriesInput = new();
     private readonly Label _entryListWarningLabel = new();
     private readonly TextBox _logDirectoryInput = new();
     private readonly TextBox _logNamePrefixInput = new();
@@ -90,66 +90,36 @@ public sealed class MainForm : Form
             Padding = new Padding(16)
         };
 
-        var layout = new TableLayoutPanel
+        var tabs = new TabControl
         {
-            Dock = DockStyle.Fill,
-            ColumnCount = 1,
-            AutoScroll = true
+            Dock = DockStyle.Fill
         };
-        panel.Controls.Add(layout);
+        panel.Controls.Add(tabs);
 
-        layout.Controls.Add(BuildSectionTitle("參數設定"));
-        layout.Controls.Add(BuildPathPicker("Golden 路徑", _goldenDirectoryInput, ChooseGoldenDirectory));
-        layout.Controls.Add(BuildFilePicker("Golden 檔名 (.tpzip)", _goldenFileNameInput, ChooseGoldenFile));
+        var settingsTab = new TabPage("參數設定")
+        {
+            BackColor = Color.White,
+            Padding = new Padding(10)
+        };
+        var settingsLayout = BuildTabLayout();
+        settingsTab.Controls.Add(settingsLayout);
+        tabs.TabPages.Add(settingsTab);
+
+        settingsLayout.Controls.Add(BuildSectionTitle("參數設定"));
+        settingsLayout.Controls.Add(BuildPathPicker("Golden 路徑", _goldenDirectoryInput, ChooseGoldenDirectory));
+        settingsLayout.Controls.Add(BuildFilePicker("Golden 檔名 (.tpzip)", _goldenFileNameInput, ChooseGoldenFile));
 
         _targetPresetInput.DropDownStyle = ComboBoxStyle.DropDownList;
         _targetPresetInput.Items.AddRange(new object[] { PresetCustom, Preset4026, Preset4024 });
         _targetPresetInput.SelectedIndexChanged += (_, _) => ApplyTargetPreset();
-        layout.Controls.Add(BuildLabeledControl("待檢查路徑選項", _targetPresetInput));
-        layout.Controls.Add(BuildPathPicker("待檢查路徑", _targetDirectoryInput, ChooseTargetDirectory));
+        settingsLayout.Controls.Add(BuildLabeledControl("待檢查路徑選項", _targetPresetInput));
+        settingsLayout.Controls.Add(BuildPathPicker("待檢查路徑", _targetDirectoryInput, ChooseTargetDirectory));
 
         _allowDifferentNamesInput.Text = "Golden 與待檢查檔名可以不同";
         _allowDifferentNamesInput.AutoSize = true;
         _allowDifferentNamesInput.CheckedChanged += (_, _) => SetTargetFileNameState();
-        layout.Controls.Add(_allowDifferentNamesInput);
-        layout.Controls.Add(BuildFilePicker("待檢查檔名 (.tpzip)", _targetFileNameInput, ChooseTargetFile));
-
-        var preloadButton = new Button
-        {
-            Text = "預讀 Golden 內容",
-            Height = 36,
-            Dock = DockStyle.Top,
-            Margin = new Padding(0, 10, 0, 6)
-        };
-        preloadButton.Click += (_, _) => LoadGoldenEntries();
-        layout.Controls.Add(preloadButton);
-
-        var ignoreLabel = new Label
-        {
-            Text = "內部檔案清單（打勾=忽略判斷）",
-            AutoSize = true,
-            Margin = new Padding(0, 8, 0, 4)
-        };
-        layout.Controls.Add(ignoreLabel);
-
-        _entryListWarningLabel.AutoSize = false;
-        _entryListWarningLabel.Height = 42;
-        _entryListWarningLabel.Dock = DockStyle.Top;
-        _entryListWarningLabel.TextAlign = ContentAlignment.MiddleLeft;
-        _entryListWarningLabel.Padding = new Padding(8, 0, 8, 0);
-        _entryListWarningLabel.BackColor = Color.FromArgb(255, 247, 205);
-        _entryListWarningLabel.ForeColor = Color.FromArgb(113, 63, 18);
-        _entryListWarningLabel.Visible = false;
-        layout.Controls.Add(_entryListWarningLabel);
-
-        _ignoredEntriesInput.CheckOnClick = true;
-        _ignoredEntriesInput.Height = 170;
-        _ignoredEntriesInput.Dock = DockStyle.Top;
-        layout.Controls.Add(_ignoredEntriesInput);
-
-        layout.Controls.Add(BuildSectionTitle("Log 設定"));
-        layout.Controls.Add(BuildPathPicker("Log 路徑", _logDirectoryInput, ChooseLogDirectory));
-        layout.Controls.Add(BuildLabeledControl("Log 名稱前綴", _logNamePrefixInput));
+        settingsLayout.Controls.Add(_allowDifferentNamesInput);
+        settingsLayout.Controls.Add(BuildFilePicker("待檢查檔名 (.tpzip)", _targetFileNameInput, ChooseTargetFile));
 
         var checkButton = new Button
         {
@@ -163,8 +133,53 @@ public sealed class MainForm : Form
         };
         checkButton.FlatAppearance.BorderSize = 0;
         checkButton.Click += (_, _) => RunComparison();
-        layout.Controls.Add(checkButton);
+        settingsLayout.Controls.Add(checkButton);
+        settingsLayout.Controls.Add(BuildParameterActions());
 
+        var addOnTab = new TabPage("附加功能")
+        {
+            BackColor = Color.White,
+            Padding = new Padding(10)
+        };
+        var addOnLayout = BuildTabLayout();
+        addOnTab.Controls.Add(addOnLayout);
+        tabs.TabPages.Add(addOnTab);
+
+        addOnLayout.Controls.Add(BuildSectionTitle("預讀"));
+        addOnLayout.Controls.Add(BuildPreloadActions());
+
+        var listLabel = new Label
+        {
+            Text = "內部檔案清單（預讀參考）",
+            AutoSize = true,
+            Margin = new Padding(0, 8, 0, 4)
+        };
+        addOnLayout.Controls.Add(listLabel);
+
+        _entryListWarningLabel.AutoSize = false;
+        _entryListWarningLabel.Height = 42;
+        _entryListWarningLabel.Dock = DockStyle.Top;
+        _entryListWarningLabel.TextAlign = ContentAlignment.MiddleLeft;
+        _entryListWarningLabel.Padding = new Padding(8, 0, 8, 0);
+        _entryListWarningLabel.BackColor = Color.FromArgb(255, 247, 205);
+        _entryListWarningLabel.ForeColor = Color.FromArgb(113, 63, 18);
+        _entryListWarningLabel.Visible = false;
+        addOnLayout.Controls.Add(_entryListWarningLabel);
+
+        _preloadedEntriesInput.Height = 170;
+        _preloadedEntriesInput.Dock = DockStyle.Top;
+        addOnLayout.Controls.Add(_preloadedEntriesInput);
+
+        addOnLayout.Controls.Add(BuildSectionTitle("Log 設定"));
+        addOnLayout.Controls.Add(BuildPathPicker("Log 路徑", _logDirectoryInput, ChooseLogDirectory));
+        addOnLayout.Controls.Add(BuildLabeledControl("Log 名稱前綴", _logNamePrefixInput));
+        addOnLayout.Controls.Add(BuildLogActions());
+
+        return panel;
+    }
+
+    private Control BuildParameterActions()
+    {
         var secondaryActions = new FlowLayoutPanel
         {
             FlowDirection = FlowDirection.LeftToRight,
@@ -177,16 +192,32 @@ public sealed class MainForm : Form
         saveButton.Click += (_, _) => SaveSettings();
         secondaryActions.Controls.Add(saveButton);
 
-        var openLogButton = new Button { Text = "開啟 Log", Width = 92, Height = 32 };
-        openLogButton.Click += (_, _) => OpenLogDirectory();
-        secondaryActions.Controls.Add(openLogButton);
-
         var clearButton = new Button { Text = "清除結果", Width = 92, Height = 32 };
         clearButton.Click += (_, _) => ClearResults();
         secondaryActions.Controls.Add(clearButton);
-        layout.Controls.Add(secondaryActions);
 
-        return panel;
+        return secondaryActions;
+    }
+
+    private Control BuildLogActions()
+    {
+        var logActions = new FlowLayoutPanel
+        {
+            FlowDirection = FlowDirection.LeftToRight,
+            AutoSize = true,
+            Dock = DockStyle.Top,
+            Margin = new Padding(0, 4, 0, 0)
+        };
+
+        var saveButton = new Button { Text = "儲存設定", Width = 92, Height = 32 };
+        saveButton.Click += (_, _) => SaveSettings();
+        logActions.Controls.Add(saveButton);
+
+        var openLogButton = new Button { Text = "開啟 Log", Width = 92, Height = 32 };
+        openLogButton.Click += (_, _) => OpenLogDirectory();
+        logActions.Controls.Add(openLogButton);
+
+        return logActions;
     }
 
     private Control BuildResultPanel()
@@ -274,6 +305,49 @@ public sealed class MainForm : Form
             Font = new Font("Microsoft JhengHei UI", 10F, FontStyle.Bold),
             Margin = new Padding(0, 8, 0, 8)
         };
+
+    private static TableLayoutPanel BuildTabLayout() =>
+        new()
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            AutoScroll = true
+        };
+
+    private Control BuildPreloadActions()
+    {
+        var row = new TableLayoutPanel
+        {
+            ColumnCount = 2,
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            Margin = new Padding(0, 2, 0, 6)
+        };
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+
+        var goldenButton = new Button
+        {
+            Text = "預讀 Golden 內容",
+            Height = 36,
+            Dock = DockStyle.Top,
+            Margin = new Padding(0, 0, 4, 0)
+        };
+        goldenButton.Click += (_, _) => LoadGoldenEntries();
+        row.Controls.Add(goldenButton, 0, 0);
+
+        var targetButton = new Button
+        {
+            Text = "預讀待檢查內容",
+            Height = 36,
+            Dock = DockStyle.Top,
+            Margin = new Padding(4, 0, 0, 0)
+        };
+        targetButton.Click += (_, _) => LoadTargetEntries();
+        row.Controls.Add(targetButton, 1, 0);
+
+        return row;
+    }
 
     private static Control BuildLabeledControl(string labelText, Control input)
     {
@@ -396,12 +470,7 @@ public sealed class MainForm : Form
         _settings.LogNamePrefix = string.IsNullOrWhiteSpace(_logNamePrefixInput.Text)
             ? "log"
             : _logNamePrefixInput.Text.Trim();
-        _settings.IgnoredEntries = _ignoredEntriesInput.CheckedItems
-            .Cast<object>()
-            .Select(item => item.ToString() ?? string.Empty)
-            .Where(item => item.Length > 0)
-            .ToList();
-        _settings.LastGoldenEntries = GetDisplayedEntryNames();
+        _settings.IgnoredEntries = [];
     }
 
     private void ApplyTargetPreset()
@@ -438,13 +507,13 @@ public sealed class MainForm : Form
         {
             ApplyUiToSettings();
             _settings.Save();
-            _ignoredEntriesInput.Items.Clear();
+            _preloadedEntriesInput.Items.Clear();
 
             var goldenPath = BuildPackagePath(_settings.GoldenDirectory, _settings.GoldenFileName);
             var entries = _comparisonService.ReadEntries(goldenPath);
 
             ShowEntryListChangeWarning(_settings.LastGoldenEntries, entries.Select(entry => entry.EntryName));
-            PopulateIgnoredEntries(entries.Select(entry => entry.EntryName));
+            PopulatePreloadedEntries(entries.Select(entry => entry.EntryName));
             _settings.LastGoldenEntries = entries.Select(entry => entry.EntryName).ToList();
             _settings.Save();
 
@@ -453,6 +522,27 @@ public sealed class MainForm : Form
         catch (Exception ex)
         {
             ShowError("預讀 Golden 失敗", ex);
+        }
+    }
+
+    private void LoadTargetEntries()
+    {
+        try
+        {
+            ApplyUiToSettings();
+            _settings.Save();
+            _preloadedEntriesInput.Items.Clear();
+            _entryListWarningLabel.Visible = false;
+
+            var targetPath = BuildPackagePath(_settings.TargetDirectory, _settings.TargetFileName);
+            var entries = _comparisonService.ReadEntries(targetPath);
+
+            PopulatePreloadedEntries(entries.Select(entry => entry.EntryName));
+            _statusLabel.Text = $"已預讀待檢查：{entries.Count} 個內部檔案";
+        }
+        catch (Exception ex)
+        {
+            ShowError("預讀待檢查失敗", ex);
         }
     }
 
@@ -521,7 +611,7 @@ public sealed class MainForm : Form
     {
         if (_settings.LastGoldenEntries.Count > 0)
         {
-            PopulateIgnoredEntries(_settings.LastGoldenEntries);
+            PopulatePreloadedEntries(_settings.LastGoldenEntries);
         }
     }
 
@@ -542,7 +632,7 @@ public sealed class MainForm : Form
 
             if (currentEntries.Count > 0)
             {
-                PopulateIgnoredEntries(currentEntries);
+                PopulatePreloadedEntries(currentEntries);
             }
         }
         catch
@@ -552,17 +642,16 @@ public sealed class MainForm : Form
         }
     }
 
-    private void PopulateIgnoredEntries(IEnumerable<string> entryNames)
+    private void PopulatePreloadedEntries(IEnumerable<string> entryNames)
     {
-        var ignored = new HashSet<string>(_settings.IgnoredEntries, StringComparer.OrdinalIgnoreCase);
-        _ignoredEntriesInput.Items.Clear();
+        _preloadedEntriesInput.Items.Clear();
 
         foreach (var entryName in entryNames
                      .Where(entryName => !string.IsNullOrWhiteSpace(entryName))
                      .Distinct(StringComparer.OrdinalIgnoreCase)
                      .OrderBy(entryName => entryName, StringComparer.OrdinalIgnoreCase))
         {
-            _ignoredEntriesInput.Items.Add(entryName, ignored.Contains(entryName));
+            _preloadedEntriesInput.Items.Add(entryName);
         }
     }
 
@@ -590,16 +679,9 @@ public sealed class MainForm : Form
             return;
         }
 
-        _entryListWarningLabel.Text = $"內部檔案清單與上次開啟不同：新增 {added.Count} 個、缺少 {missing.Count} 個，請確認忽略項目。";
+        _entryListWarningLabel.Text = $"內部檔案清單與上次開啟不同：新增 {added.Count} 個、缺少 {missing.Count} 個，請確認預讀清單。";
         _entryListWarningLabel.Visible = true;
     }
-
-    private List<string> GetDisplayedEntryNames() =>
-        _ignoredEntriesInput.Items
-            .Cast<object>()
-            .Select(item => item.ToString() ?? string.Empty)
-            .Where(item => item.Length > 0)
-            .ToList();
 
     private void SaveSettings()
     {

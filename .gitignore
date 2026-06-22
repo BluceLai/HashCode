@@ -19,6 +19,7 @@ appsettings.json
 # Generated presentation workspaces and QA renders
 outputs/
 manuals/qa/
+_incoming_zip/
 
 # OS noise
 Thumbs.db

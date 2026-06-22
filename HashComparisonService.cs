@@ -6,6 +6,9 @@ namespace HashCode;
 
 public sealed class HashComparisonService
 {
+    private static readonly string[] AutoIgnoredExtensions = [".plcproj", ".tmc"];
+    private const string AutoIgnoredDirectory = "_Libraries";
+
     public IReadOnlyList<ZipEntryHash> ReadEntries(string packagePath)
     {
         EnsurePackageExists(packagePath);
@@ -26,27 +29,26 @@ public sealed class HashComparisonService
         return rows;
     }
 
+    public ComparisonSummary Compare(string goldenPath, string targetPath) =>
+        Compare(goldenPath, targetPath, Enumerable.Empty<string>());
+
     public ComparisonSummary Compare(
         string goldenPath,
         string targetPath,
         IEnumerable<string> ignoredEntries)
     {
-        var ignored = new HashSet<string>(
-            ignoredEntries.Select(NormalizeEntryName),
-            StringComparer.OrdinalIgnoreCase);
         var goldenEntries = ReadEntries(goldenPath)
-            .Where(entry => !ignored.Contains(entry.EntryName))
+            .Where(entry => !IsAutoIgnoredEntry(entry.EntryName))
             .ToDictionary(entry => entry.EntryName, StringComparer.OrdinalIgnoreCase);
         var targetEntries = ReadEntries(targetPath)
+            .Where(entry => !IsAutoIgnoredEntry(entry.EntryName))
             .ToDictionary(entry => entry.EntryName, StringComparer.OrdinalIgnoreCase);
         var goldenPackageHash = ComputePackageHash(goldenEntries.Values.Select(entry =>
             new PackageHashPart(entry.EntryName, entry.HashCode)));
         var targetPackageHash = ComputePackageHash(targetEntries.Values
-            .Where(entry => !ignored.Contains(entry.EntryName))
             .Select(entry => new PackageHashPart(entry.EntryName, entry.HashCode)));
         var allEntryNames = goldenEntries.Keys
             .Union(targetEntries.Keys, StringComparer.OrdinalIgnoreCase)
-            .Where(entryName => !ignored.Contains(entryName))
             .OrderBy(entryName => entryName, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
@@ -111,5 +113,34 @@ public sealed class HashComparisonService
     private static string NormalizeEntryName(string entryName) =>
         entryName.Replace('\\', '/').Trim();
 
+    private static bool IsAutoIgnoredEntry(string entryName)
+    {
+        var normalizedEntryName = NormalizeEntryName(entryName);
+        return HasAutoIgnoredExtension(normalizedEntryName)
+               || HasAutoIgnoredDirectory(normalizedEntryName);
+    }
+
+    private static bool HasAutoIgnoredExtension(string entryName) =>
+        AutoIgnoredExtensions.Contains(Path.GetExtension(entryName), StringComparer.OrdinalIgnoreCase);
+
+    private static bool HasAutoIgnoredDirectory(string entryName) =>
+        entryName.Split('/', StringSplitOptions.RemoveEmptyEntries)
+            .Any(segment => string.Equals(segment, AutoIgnoredDirectory, StringComparison.OrdinalIgnoreCase));
+
     private sealed record PackageHashPart(string EntryName, string HashCode);
 }
+
+public sealed record ZipEntryHash(string EntryName, long Size, string HashCode);
+
+public sealed record ComparisonRow(
+    string EntryName,
+    string GoldenHashCode,
+    string TargetHashCode,
+    string Result,
+    string Note);
+
+public sealed record ComparisonSummary(
+    string GoldenPackageHashCode,
+    string TargetPackageHashCode,
+    bool IsSame,
+    IReadOnlyList<ComparisonRow> Rows);
